@@ -118,6 +118,8 @@ public:
     template <typename LoadFunc>
     std::pair<MappedPtr, bool> getOrSet(const Key & key, LoadFunc && load_func)
     {
+        if (!maxSizeInBytesUnsafe())
+            return std::make_pair(load_func(), false);
         InsertTokenHolder token_holder;
         {
             std::lock_guard cache_lock(mutex);
@@ -218,6 +220,11 @@ public:
     size_t maxSizeInBytes() const
     {
         std::lock_guard lock(mutex);
+        return cache_policy->maxSizeInBytes();
+    }
+
+    size_t maxSizeInBytesUnsafe() const TSA_NO_THREAD_SAFETY_ANALYSIS
+    {
         return cache_policy->maxSizeInBytes();
     }
 
