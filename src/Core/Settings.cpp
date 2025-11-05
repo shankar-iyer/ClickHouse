@@ -1536,7 +1536,7 @@ Possible values:
 - 0 — Disabled.
 - 1 — Enabled.
 )", 0) \
-    DECLARE(Bool, use_skip_indexes_for_topn, false, R"(
+    DECLARE(Bool, use_skip_indexes_for_top_n, false, R"(
 Enable using data skipping indexes during data reading.
 
 When enabled, skip indexes are evaluated dynamically at the time each data granule is being read, rather than being analyzed in advance before query execution begins. This can reduce query startup latency.

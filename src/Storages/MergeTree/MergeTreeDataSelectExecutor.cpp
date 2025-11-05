@@ -95,7 +95,7 @@ namespace Setting
     extern const SettingsBool secondary_indices_enable_bulk_filtering;
     extern const SettingsBool parallel_replicas_support_projection;
     extern const SettingsBool vector_search_with_rescoring;
-    extern const SettingsBool use_skip_indexes_for_topn;
+    extern const SettingsBool use_skip_indexes_for_top_n;
 }
 
 namespace MergeTreeSetting
@@ -659,6 +659,7 @@ RangesInDataParts MergeTreeDataSelectExecutor::filterPartsByPrimaryKeyAndSkipInd
     const std::optional<KeyCondition> & part_offset_condition,
     const std::optional<KeyCondition> & total_offset_condition,
     const UsefulSkipIndexes & skip_indexes,
+    MergeTreeIndexPtr & skip_index_for_top_n,
     const MergeTreeReaderSettings & reader_settings,
     LoggerPtr log,
     size_t num_streams,
@@ -1076,12 +1077,12 @@ RangesInDataParts MergeTreeDataSelectExecutor::filterPartsByPrimaryKeyAndSkipInd
             return !part.data_part || part.ranges.empty();
         });
 
-    if (settings[Setting::use_skip_indexes_for_topn])
+    if (settings[Setting::use_skip_indexes_for_top_n] && skip_index_for_top_n)
     {
 
     for (size_t part_index = 0; part_index < parts_with_ranges.size(); ++part_index)
     {
-	const auto & skip_index_for_top_n = skip_indexes.useful_indices[0].index;
+	/// const auto & skip_index_for_top_n = skip_indexes.useful_indices[0].index;
         auto index_granularity = skip_index_for_top_n->index.granularity;
         size_t marks_count = parts_with_ranges[part_index].data_part->index_granularity->getMarksCountWithoutFinal();
         size_t index_marks_count = (marks_count + index_granularity - 1) / index_granularity;
@@ -1327,6 +1328,7 @@ ReadFromMergeTree::AnalysisResultPtr MergeTreeDataSelectExecutor::estimateNumMar
         std::move(parts),
         mutations_snapshot,
         std::nullopt,
+	std::nullopt,
         metadata_snapshot,
         query_info,
         context,

@@ -72,6 +72,14 @@ public:
         PrimaryKeyExpand,
     };
 
+    struct TopNFilter
+    {
+        String column_name;
+        DataTypePtr data_type;
+        size_t limit_n;
+    };
+
+
     /// This is a struct with information about applied indexes.
     /// Is used for introspection only, in EXPLAIN query.
     struct IndexStat
@@ -209,6 +217,7 @@ public:
         RangesInDataParts parts,
         MergeTreeData::MutationsSnapshotPtr mutations_snapshot,
         const std::optional<VectorSearchParameters> & vector_search_parameters,
+        const std::optional<TopNFilter> & top_n_filter,
         const StorageMetadataPtr & metadata_snapshot,
         const SelectQueryInfo & query_info,
         ContextPtr context,
@@ -274,7 +283,8 @@ public:
     const std::optional<Indexes> & getIndexes() const { return indexes; }
     ConditionSelectivityEstimatorPtr getConditionSelectivityEstimator() const;
 
-    String getTopNColumn() { return "v1"; }
+    std::optional<TopNFilter> top_n_filter;
+    void setTopNColumn(const TopNFilter & top_n_filter_) { top_n_filter = top_n_filter_; }
 
 private:
     MergeTreeReaderSettings reader_settings;

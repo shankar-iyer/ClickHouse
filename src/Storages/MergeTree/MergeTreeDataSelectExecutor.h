@@ -201,6 +201,7 @@ public:
         const std::optional<KeyCondition> & part_offset_condition,
         const std::optional<KeyCondition> & total_offset_condition,
         const UsefulSkipIndexes & skip_indexes,
+	MergeTreeIndexPtr & skip_index_for_top_n,
         const MergeTreeReaderSettings & reader_settings,
         LoggerPtr log,
         size_t num_streams,
