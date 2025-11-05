@@ -225,6 +225,65 @@ MergeTreeIndexFormat MergeTreeIndexMinMax::getDeserializedFormat(const MergeTree
     return {0 /* unknown */, {}};
 }
 
+MergeTreeIndexBulkGranulesMinMax::MergeTreeIndexBulkGranulesMinMax(const String & index_name_, const Block & index_sample_block_) :
+    index_name(index_name_),
+    index_sample_block(index_sample_block_)
+{
+    const DataTypePtr & type = index_sample_block.getByPosition(0).type;
+    serializations.push_back(type->getDefaultSerialization());
+}
+
+void MergeTreeIndexBulkGranulesMinMax::deserializeBinary(size_t granule_num, ReadBuffer & istr, MergeTreeIndexVersion /*version*/)
+{
+    serializations[0]->deserializeBinary(min_val, istr, format_settings);
+    serializations[0]->deserializeBinary(max_val, istr, format_settings);
+/*
+    granule_nums.emplace_back(granule_num);
+    min_values.emplace_back(min_val);
+    max_values.emplace_back(max_val);
+*/
+    granules.emplace_back(MinMaxGranule{granule_num, min_val, max_val});
+}
+
+void MergeTreeIndexBulkGranulesMinMax::getTopN(size_t n, std::vector<size_t> & result)
+{
+	std::sort(granules.begin(), granules.end(),
+			[](const MinMaxGranule & granule_a, const MinMaxGranule & granule_b) { return granule_a.max_value < granule_b.max_value; });
+	auto start = granules.begin() + (granules.size() - n);
+	while (start != granules.end())
+	{
+		result.push_back(start->granule_num);
+		start++;
+	}
+				
+}
+
+#if 0
+void MergeTreeIndexMinMax::getTopNGranules(MergeTreeIndexReader & reader, const MarkRanges & index_ranges, size_t n, bool asc, bool no_predicates) const
+{
+    std::vector<Field> min_values;
+    std::vector<Field> max_values;
+    for (auto range : index_ranges)
+    {
+        Field min_val;
+        Field max_val;
+                serialization->deserializeBinary(min_val, istr, format_settings);
+                serialization->deserializeBinary(max_val, istr, format_settings);
+                min_values.emplace_back(min_value);
+                max_values.emplace_back(max_value);
+    }
+    if (no_predicates)
+    {
+        std::sort(max_values.begin(), max_values.end());
+    }
+    else
+    {
+        std::sort(min_values.begin(), min_values.end());
+        std::sort(max_values.begin(), max_values.end());
+    }
+}
+#endif
+
 MergeTreeIndexPtr minmaxIndexCreator(
     const IndexDescription & index)
 {

@@ -5,6 +5,7 @@
 #include <Storages/MergeTree/MergeTreeDataSelectExecutor.h>
 #include <Storages/MergeTree/MergeTreeIndices.h>
 #include <Storages/MergeTree/MergeTreeIndexReader.h>
+#include <Storages/MergeTree/MergeTreeIndexMinMax.h>
 #include <Storages/MergeTree/MergeTreeSettings.h>
 #include <Storages/MergeTree/KeyCondition.h>
 #include <Storages/MergeTree/MergeTreeDataPartUUID.h>
@@ -94,6 +95,7 @@ namespace Setting
     extern const SettingsBool secondary_indices_enable_bulk_filtering;
     extern const SettingsBool parallel_replicas_support_projection;
     extern const SettingsBool vector_search_with_rescoring;
+    extern const SettingsBool use_skip_indexes_for_topn;
 }
 
 namespace MergeTreeSetting
@@ -1074,6 +1076,60 @@ RangesInDataParts MergeTreeDataSelectExecutor::filterPartsByPrimaryKeyAndSkipInd
             return !part.data_part || part.ranges.empty();
         });
 
+    if (settings[Setting::use_skip_indexes_for_topn])
+    {
+
+    for (size_t part_index = 0; part_index < parts_with_ranges.size(); ++part_index)
+    {
+	const auto & skip_index_for_top_n = skip_indexes.useful_indices[0].index;
+        auto index_granularity = skip_index_for_top_n->index.granularity;
+        size_t marks_count = parts_with_ranges[part_index].data_part->index_granularity->getMarksCountWithoutFinal();
+        size_t index_marks_count = (marks_count + index_granularity - 1) / index_granularity;
+ 
+        MarkRanges index_ranges;
+        for (const auto & range : parts_with_ranges[part_index].ranges)
+        {
+            MarkRange index_range(
+                range.begin / index_granularity,
+                (range.end + index_granularity - 1) / index_granularity);
+            index_ranges.push_back(index_range);
+        }
+
+        auto mark_cache = context->getIndexMarkCache();
+        auto uncompressed_cache = context->getIndexUncompressedCache();
+        auto vector_similarity_index_cache = context->getVectorSimilarityIndexCache();
+        MergeTreeIndexReader reader(
+            skip_index_for_top_n,
+            parts_with_ranges[part_index].data_part,
+            index_marks_count,
+            index_ranges,
+            mark_cache.get(),
+            uncompressed_cache.get(),
+            vector_similarity_index_cache.get(),
+            reader_settings);
+
+	auto min_max_granules = std::make_shared<MergeTreeIndexBulkGranulesMinMax>(skip_index_for_top_n->index.name,
+			skip_index_for_top_n->index.sample_block);
+	auto bulk_granules = std::dynamic_pointer_cast<IMergeTreeIndexBulkGranules>(min_max_granules);
+        for (size_t i = 0; i < index_ranges.size(); ++i)
+        {
+            const MarkRange & index_range = index_ranges[i];
+            for (size_t index_mark = index_range.begin; index_mark < index_range.end; ++index_mark)
+	    {
+	        reader.read(index_mark, index_mark, bulk_granules);
+	    }
+        }
+	LOG_TRACE(getLogger(""), "TopN granules read {}", min_max_granules->granules.size());
+	std::vector<size_t> result;
+	min_max_granules->getTopN(10, result);
+	LOG_TRACE(getLogger(""),"TopN tops {} {} {}", result[0], result[1], result[5]);
+	MarkRanges res;
+	for (auto range : result)
+		res.push_back({range, range + 1});
+	parts_with_ranges[part_index].ranges = res;
+    }
+
+    }
     return parts_with_ranges;
 }
 
@@ -1768,6 +1824,7 @@ std::pair<MarkRanges, RangesInDataPartReadHints> MergeTreeDataSelectExecutor::fi
         MarkRange index_range(
                 range.begin / index_granularity,
                 (range.end + index_granularity - 1) / index_granularity);
+	LOG_TRACE(getLogger(""), "Bulk adding {} {} {}", range.begin, range.end, index_granularity);
         index_ranges.push_back(index_range);
     }
 
@@ -1792,11 +1849,13 @@ std::pair<MarkRanges, RangesInDataPartReadHints> MergeTreeDataSelectExecutor::fi
         for (size_t i = 0; i < ranges_size; ++i)
         {
             const MarkRange & index_range = index_ranges[i];
+	    LOG_TRACE(getLogger(""), "Bulk filtering {} of {} - {} {} {}",i, ranges_size, index_ranges.size(), index_range.begin, index_range.end);
 
             for (size_t index_mark = index_range.begin; index_mark < index_range.end; ++index_mark)
             {
                 reader.read(index_mark, current_granule_num, granules);
                 ++current_granule_num;
+		LOG_TRACE(getLogger(""), "Bulk read granule num {}", current_granule_num);
             }
         }
 
@@ -2176,5 +2235,42 @@ void MergeTreeDataSelectExecutor::selectPartsToReadWithUUIDFilter(
             throw Exception(ErrorCodes::DUPLICATED_PART_UUIDS, "Found duplicate UUIDs while processing query.");
     }
 }
+
+#if 0
+MarkRanges MergeTreeDataSelectExecutor::topNPruningUsingMinMaxIndex(
+    size_t n,
+    bool asc, /// true=asc, false=desc
+    MergeTreeIndexPtr index_helper,
+    MergeTreeData::DataPartPtr part,
+    const MarkRanges & ranges,
+    const MergeTreeReaderSettings & reader_settings,
+    MarkCache * mark_cache,
+    UncompressedCache * uncompressed_cache,
+    VectorSimilarityIndexCache * vector_similarity_index_cache,
+    LoggerPtr log)
+{
+    MarkRanges index_ranges;
+    for (const auto & range : ranges)
+    {
+        MarkRange index_range(
+                range.begin / index_granularity,
+                (range.end + index_granularity - 1) / index_granularity);
+        index_ranges.push_back(index_range);
+    }
+
+    MergeTreeIndexReader reader(
+        index_helper, part,
+        index_marks_count,
+        index_ranges,
+        mark_cache,
+        uncompressed_cache,
+        vector_similarity_index_cache,
+        reader_settings);
+
+    MarkRanges res;
+
+    index_helper->getTopNGranules(reader, index_ranges, n, asc);
+}
+#endif
 
 }

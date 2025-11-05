@@ -3,6 +3,7 @@
 #include <Processors/Transforms/PartialSortingTransform.h>
 #include <Common/PODArray.h>
 #include <Common/iota.h>
+#include <Common/logger_useful.h>
 
 namespace DB
 {
@@ -162,6 +163,7 @@ void PartialSortingTransform::transform(Chunk & chunk)
             }
 
             sort_description_threshold_columns = std::move(sort_description_threshold_columns_updated);
+	    LOG_TRACE(getLogger(""), "startReadingChain : Threshold updated.");
         }
     }
 

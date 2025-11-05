@@ -953,6 +953,8 @@ MergeTreeRangeReader::ReadResult MergeTreeRangeReader::startReadingChain(size_t 
     ReadResult result(log);
     result.columns.resize(merge_tree_reader->getColumns().size());
 
+    LOG_TRACE(getLogger(""), "startReadingChain {} {} {}", merge_tree_reader->data_part_info_for_read->getPartName(), ranges.size(), ranges.begin()->begin);
+
     size_t current_task_last_mark = getLastMark(ranges);
 
     /// The stream could be unfinished by the previous read request because of max_rows limit.

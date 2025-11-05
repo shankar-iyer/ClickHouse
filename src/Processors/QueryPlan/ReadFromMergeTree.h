@@ -51,6 +51,7 @@ struct UsefulSkipIndexes
     std::vector<MergeTreeIndexWithCondition> useful_indices;
     std::vector<MergedDataSkippingIndexAndCondition> merged_indices;
     std::vector<std::vector<size_t>> per_part_index_orders;
+    MergeTreeIndexPtr skip_index_for_top_n_filtering;
 };
 
 struct MergeTreeIndexBuildContext;
@@ -272,6 +273,8 @@ public:
 
     const std::optional<Indexes> & getIndexes() const { return indexes; }
     ConditionSelectivityEstimatorPtr getConditionSelectivityEstimator() const;
+
+    String getTopNColumn() { return "v1"; }
 
 private:
     MergeTreeReaderSettings reader_settings;

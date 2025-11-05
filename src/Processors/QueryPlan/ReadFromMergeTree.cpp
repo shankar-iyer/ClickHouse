@@ -1904,6 +1904,15 @@ static void buildIndexes(
 
         if (!condition->alwaysUnknownOrTrue())
             skip_indexes.useful_indices.emplace_back(index_helper, condition);
+
+        auto canSkipIndexBeUsedForTopNFiltering = [](const MergeTreeIndexPtr & skip_index)
+	{ return skip_index->index.column_names.size() == 1 && skip_index->index.column_names[0] == getTopNColumn() && typeid_cast<const MergeTreeIndexMinMax *>(skip_index.get();
+	}
+	if (settings[Setting::use_skip_index_for_topn] &&
+			canSkipIndexBeUsedForTopNFiltering(index_helper)
+	{
+            skip_indexes.skip_index_for_top_n_filtering = index_helper;
+	}
     }
 
     {
