@@ -4,6 +4,9 @@
 #include <Common/PODArray.h>
 #include <Common/iota.h>
 #include <Common/logger_useful.h>
+#include <Common/CurrentThread.h>
+#include <Interpreters/Context_fwd.h>
+#include <Interpreters/Context.h>
 
 namespace DB
 {
@@ -135,6 +138,9 @@ void PartialSortingTransform::transform(Chunk & chunk)
         }
     }
 
+    (const_cast<Context *>(CurrentThread::get().getQueryContext().get()))->updateTopNThreshold(5);
+    LOG_TRACE(getLogger(""), "query id : {}", CurrentThread::get().getQueryContext()->getCurrentQueryId());
+
     sortBlock(block, description, limit);
 
     /// Check if we can use this block for optimization.
@@ -148,6 +154,8 @@ void PartialSortingTransform::transform(Chunk & chunk)
           */
         size_t min_row_to_compare = limit - 1;
         auto raw_block_columns = extractRawColumns(block, description_with_positions);
+
+	LOG_TRACE(getLogger(""), "Sort columns {} {} {} {} {}", raw_block_columns.size(), raw_block_columns[0]->getValueNameAndType(0).first, raw_block_columns[0]->getValueNameAndType(0).second->getName(), raw_block_columns[0]->get64(0), raw_block_columns[0]->getInt(0));
 
         if (sort_description_threshold_columns.empty() ||
             compareWithThreshold(raw_block_columns, min_row_to_compare, sort_description_threshold_columns, description))

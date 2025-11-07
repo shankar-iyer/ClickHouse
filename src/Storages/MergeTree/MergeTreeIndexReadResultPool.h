@@ -3,6 +3,7 @@
 #include <Common/SharedMutex.h>
 #include <Processors/QueryPlan/ReadFromMergeTree.h>
 #include <Storages/MergeTree/VectorSimilarityIndexCache.h>
+#include <Storages/MergeTree/MergeTreeIndexMinMax.h>
 
 namespace DB
 {
@@ -10,7 +11,12 @@ namespace DB
 class IMergeTreeDataPart;
 using DataPartPtr = std::shared_ptr<const IMergeTreeDataPart>;
 
-using SkipIndexReadResult = std::vector<bool>;
+/// using SkipIndexReadResult = std::vector<bool>;
+struct SkipIndexReadResult
+{
+    std::vector<bool> granules_selected;
+    std::shared_ptr<MergeTreeIndexBulkGranulesMinMax> min_max_index_for_top_n;
+};
 using SkipIndexReadResultPtr = std::shared_ptr<SkipIndexReadResult>;
 
 class MergeTreeSkipIndexReader

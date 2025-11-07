@@ -64,8 +64,9 @@ size_t MergeTreeReaderIndex::readRows(
 
 bool MergeTreeReaderIndex::canSkipMark(size_t mark, size_t /*current_task_last_mark*/)
 {
-    chassert(mark < index_read_result->skip_index_read_result->size());
-    if (!index_read_result->skip_index_read_result->at(mark))
+    chassert(mark < index_read_result->skip_index_read_result->granules_selected.size());
+    LOG_TRACE(getLogger(""), "canSkipMark checking {} against {}", mark, index_read_result->skip_index_read_result->min_max_index_for_top_n->granules.size());
+    if (!index_read_result->skip_index_read_result->granules_selected.at(mark))
         return true;
 
     /// TODO(ab): If projection index is available, attempt to skip via projection bitmap.

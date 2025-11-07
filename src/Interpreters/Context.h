@@ -1614,6 +1614,10 @@ public:
 
     const ServerSettings & getServerSettings() const;
 
+    void updateTopNThreshold(size_t new_value) { top_n_threshold.store(new_value); }
+    size_t getTopNThreshold() const { return top_n_threshold.load(); }
+    std::atomic<size_t> top_n_threshold{0};
+
 private:
     std::shared_ptr<const SettingsConstraintsAndProfileIDs> getSettingsConstraintsAndCurrentProfilesWithLock() const;
 

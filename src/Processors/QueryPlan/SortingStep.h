@@ -121,6 +121,8 @@ public:
 
     static std::unique_ptr<IQueryPlanStep> deserialize(Deserialization & ctx);
 
+    void setTopNThresholdUpdate(bool value) {  apply_top_n_threshold_update = value; }
+
 private:
     void scatterByPartitionIfNeeded(QueryPipelineBuilder& pipeline);
     void updateOutputHeader() override;
@@ -160,6 +162,7 @@ private:
     bool always_read_till_end = false;
     bool use_buffering = false;
     bool apply_virtual_row_conversions = false;
+    bool apply_top_n_threshold_update = false;
 
     Settings sort_settings;
 };

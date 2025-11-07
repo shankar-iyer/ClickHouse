@@ -17,6 +17,7 @@
 #include <boost/qvm/vec_traits.hpp>
 #include <base/scope_guard.h>
 #include <fmt/ranges.h>
+#include <Interpreters/Context.h>
 
 #ifdef __SSE2__
 #include <emmintrin.h>
@@ -953,7 +954,8 @@ MergeTreeRangeReader::ReadResult MergeTreeRangeReader::startReadingChain(size_t 
     ReadResult result(log);
     result.columns.resize(merge_tree_reader->getColumns().size());
 
-    LOG_TRACE(getLogger(""), "startReadingChain {} {} {}", merge_tree_reader->data_part_info_for_read->getPartName(), ranges.size(), ranges.begin()->begin);
+    if (ranges.size() > 0)
+        LOG_TRACE(getLogger(""), "startReadingChain {} {} {}", merge_tree_reader->data_part_info_for_read->getPartName(), ranges.size(), ranges.begin()->begin);
 
     size_t current_task_last_mark = getLastMark(ranges);
 
@@ -987,7 +989,7 @@ MergeTreeRangeReader::ReadResult MergeTreeRangeReader::startReadingChain(size_t 
                 ranges.pop_front();
                 current_mark = stream.current_mark;
             }
-
+            LOG_TRACE(getLogger(""), "canSkipMark {} {}", CurrentThread::get().getQueryContext()->getTopNThreshold(), CurrentThread::get().getQueryContext()->getCurrentQueryId());
             if (merge_tree_reader->canSkipMark(currentMark(), stream.stream.currentTaskLastMark()))
             {
                 result.addGranule(0, {0, 0} /* unused when granule has no rows to read */);

@@ -305,6 +305,7 @@ void SortingStep::finishSorting(
         });
 
     bool increase_sort_description_compile_attempts = true;
+    LOG_TRACE(getLogger(""), "finishSorting flag is {}", apply_top_n_threshold_update);
 
     /// NOTE limits are not applied to the size of temporary sets in FinishSortingTransform
     pipeline.addSimpleTransform(
@@ -403,6 +404,7 @@ void SortingStep::fullSortStreams(
     const UInt64 limit_,
     const bool skip_partial_sort)
 {
+    ///LOG_TRACE(getLogger(""), "fullSortStreams flag is {}", apply_top_n_threshold_update);
     if (!skip_partial_sort || limit_)
     {
         pipeline.addSimpleTransform(
@@ -435,6 +437,7 @@ void SortingStep::fullSort(
     QueryPipelineBuilder & pipeline, const SortDescription & result_sort_desc, const UInt64 limit_, const bool skip_partial_sort)
 {
     scatterByPartitionIfNeeded(pipeline);
+    LOG_TRACE(getLogger(""), "fullSort flag is {}", apply_top_n_threshold_update);
 
     fullSortStreams(pipeline, sort_settings, result_sort_desc, limit_, skip_partial_sort);
 

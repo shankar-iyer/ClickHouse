@@ -1077,7 +1077,7 @@ RangesInDataParts MergeTreeDataSelectExecutor::filterPartsByPrimaryKeyAndSkipInd
             return !part.data_part || part.ranges.empty();
         });
 
-    if (settings[Setting::use_skip_indexes_for_top_n] && skip_index_for_top_n)
+    if (settings[Setting::use_skip_indexes_for_top_n] && skip_index_for_top_n && !settings[Setting::use_skip_indexes_on_data_read])
     {
 
     for (size_t part_index = 0; part_index < parts_with_ranges.size(); ++part_index)
@@ -2274,5 +2274,49 @@ MarkRanges MergeTreeDataSelectExecutor::topNPruningUsingMinMaxIndex(
     index_helper->getTopNGranules(reader, index_ranges, n, asc);
 }
 #endif
+std::shared_ptr<MergeTreeIndexBulkGranulesMinMax> MergeTreeDataSelectExecutor::getMinMaxIndexGranules(MergeTreeData::DataPartPtr part, const MarkRanges & ranges, MergeTreeIndexPtr skip_index_for_top_n_filtering,
+	const MergeTreeReaderSettings & reader_settings,
+        MarkCache * mark_cache,
+        UncompressedCache * uncompressed_cache,
+        VectorSimilarityIndexCache * vector_similarity_index_cache)
+{
+        auto index_granularity = skip_index_for_top_n_filtering->index.granularity;
+        size_t marks_count = part->index_granularity->getMarksCountWithoutFinal();
+        size_t index_marks_count = (marks_count + index_granularity - 1) / index_granularity;
+ 
+        MarkRanges index_ranges;
+        for (const auto & range : ranges)
+        {
+            MarkRange index_range(
+                range.begin / index_granularity,
+                (range.end + index_granularity - 1) / index_granularity);
+            index_ranges.push_back(index_range);
+        }
+
+        MergeTreeIndexReader reader(
+            skip_index_for_top_n_filtering,
+            part,
+            index_marks_count,
+            index_ranges,
+            mark_cache,
+            uncompressed_cache,
+            vector_similarity_index_cache,
+            reader_settings);
+
+	auto min_max_granules = std::make_shared<MergeTreeIndexBulkGranulesMinMax>(skip_index_for_top_n_filtering->index.name,
+			skip_index_for_top_n_filtering->index.sample_block);
+	auto bulk_granules = std::dynamic_pointer_cast<IMergeTreeIndexBulkGranules>(min_max_granules);
+        for (size_t i = 0; i < index_ranges.size(); ++i)
+        {
+            const MarkRange & index_range = index_ranges[i];
+            for (size_t index_mark = index_range.begin; index_mark < index_range.end; ++index_mark)
+	    {
+	        reader.read(index_mark, index_mark, bulk_granules);
+	    }
+        }
+	LOG_TRACE(getLogger(""), "TopN granules read now {}", min_max_granules->granules.size());
+	return min_max_granules;
+
+}
 
 }
