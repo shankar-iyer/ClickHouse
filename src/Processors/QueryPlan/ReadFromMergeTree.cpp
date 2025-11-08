@@ -1782,7 +1782,7 @@ ReadFromMergeTree::AnalysisResultPtr ReadFromMergeTree::selectRangesToRead(bool 
         getParts(),
         mutations_snapshot,
         vector_search_parameters,
-	top_n_filter,
+	top_n_filter_info,
         storage_snapshot->metadata,
         query_info,
         context,
@@ -1804,7 +1804,7 @@ static void buildIndexes(
     const MergeTreeData & data,
     const RangesInDataParts & parts,
     [[maybe_unused]] const std::optional<VectorSearchParameters> & vector_search_parameters,
-    [[maybe_unused]] const std::optional<ReadFromMergeTree::TopNFilter> top_n_filter,
+    [[maybe_unused]] const std::optional<TopNFilterInfo> top_n_filter_info,
     const ContextPtr & context,
     const SelectQueryInfo & query_info,
     const StorageMetadataPtr & metadata_snapshot)
@@ -1899,22 +1899,21 @@ static void buildIndexes(
         }
         else
         {
-            if (!filter_dag.predicate)
-                continue;
-
-            condition = index_helper->createIndexCondition(filter_dag.predicate, context);
+            if (filter_dag.predicate)
+                condition = index_helper->createIndexCondition(filter_dag.predicate, context);
         }
 
-        if (!condition->alwaysUnknownOrTrue())
+        if (condition && !condition->alwaysUnknownOrTrue())
             skip_indexes.useful_indices.emplace_back(index_helper, condition);
 
-        auto canSkipIndexBeUsedForTopNFiltering = [top_n_filter](const MergeTreeIndexPtr & skip_index)
-	{ return top_n_filter && skip_index->index.column_names.size() == 1 && top_n_filter->column_name.find(skip_index->index.column_names[0]) != std::string::npos && typeid_cast<const MergeTreeIndexMinMax *>(skip_index.get());
+        auto canSkipIndexBeUsedForTopNFiltering = [top_n_filter_info](const MergeTreeIndexPtr & skip_index)
+	{ return top_n_filter_info && skip_index->index.column_names.size() == 1 && top_n_filter_info->column_name == skip_index->index.column_names[0] && typeid_cast<const MergeTreeIndexMinMax *>(skip_index.get());
 	};
-	if (settings[Setting::use_skip_indexes_for_top_n] &&
-			canSkipIndexBeUsedForTopNFiltering(index_helper))
+
+	if (settings[Setting::use_skip_indexes_for_top_n] && canSkipIndexBeUsedForTopNFiltering(index_helper))
 	{
-            skip_indexes.skip_index_for_top_n_filtering = index_helper;
+            if (!top_n_filter_info->where_clause) /// TODO : Enable some WHERE types
+                skip_indexes.skip_index_for_top_n_filtering = index_helper;
 	}
     }
 
@@ -1997,7 +1996,7 @@ void ReadFromMergeTree::applyFilters(ActionDAGNodes added_filter_nodes)
             data,
             getParts(),
             vector_search_parameters,
-            top_n_filter,
+            top_n_filter_info,
             context,
             query_info,
             storage_snapshot->metadata);
@@ -2008,7 +2007,7 @@ ReadFromMergeTree::AnalysisResultPtr ReadFromMergeTree::selectRangesToRead(
     RangesInDataParts parts,
     MergeTreeData::MutationsSnapshotPtr mutations_snapshot,
     const std::optional<VectorSearchParameters> & vector_search_parameters,
-    const std::optional<TopNFilter> & top_n_filter,
+    const std::optional<TopNFilterInfo> & top_n_filter_info,
     const StorageMetadataPtr & metadata_snapshot,
     const SelectQueryInfo & query_info_,
     ContextPtr context_,
@@ -2046,7 +2045,7 @@ ReadFromMergeTree::AnalysisResultPtr ReadFromMergeTree::selectRangesToRead(
             data,
             parts,
             vector_search_parameters,
-            top_n_filter,
+            top_n_filter_info,
             context_,
             query_info_,
             metadata_snapshot);
@@ -2124,7 +2123,7 @@ ReadFromMergeTree::AnalysisResultPtr ReadFromMergeTree::selectRangesToRead(
             indexes->part_offset_condition,
             indexes->total_offset_condition,
             indexes->skip_indexes,
-	    indexes->skip_indexes.skip_index_for_top_n_filtering,
+	    top_n_filter_info,
             reader_settings,
             log,
             num_streams,
@@ -2768,7 +2767,7 @@ void ReadFromMergeTree::initializePipeline(QueryPipelineBuilder & pipeline, cons
     /// MergeTreeSelectProcessor instances, and is used to construct and apply index filters in a thread-safe manner.
     MergeTreeIndexBuildContextPtr index_build_context;
 
-    if (supportsSkipIndexesOnDataRead())
+    if (supportsSkipIndexesOnDataRead() || indexes->skip_indexes.skip_index_for_top_n_filtering)
     {
         UsefulSkipIndexes applicable_skip_indexes = indexes->skip_indexes;
 

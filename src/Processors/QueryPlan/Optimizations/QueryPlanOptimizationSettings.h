@@ -118,6 +118,8 @@ struct QueryPlanOptimizationSettings
     /// If full text search using index in payload is enabled.
     bool direct_read_from_text_index;
 
+    bool use_top_n_dynamic_filtering;
+
     /// Setting needed for Sets (JOIN -> IN optimization)
 
     SizeLimits network_transfer_limits;

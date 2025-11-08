@@ -1,5 +1,6 @@
 #pragma once
 #include <Processors/QueryPlan/ITransformingStep.h>
+#include <Processors/TopNThresholdTracker.h>
 #include <Core/SortDescription.h>
 #include <QueryPipeline/SizeLimits.h>
 #include <Interpreters/TemporaryDataOnDisk.h>
@@ -113,7 +114,8 @@ public:
         const Settings & sort_settings,
         const SortDescription & result_sort_desc,
         UInt64 limit_,
-        bool skip_partial_sort = false);
+        bool skip_partial_sort = false,
+        TopNThresholdTrackerPtr threshold_tracker = nullptr);
 
     void serializeSettings(QueryPlanSerializationSettings & settings) const override;
     void serialize(Serialization & ctx) const override;
@@ -121,7 +123,7 @@ public:
 
     static std::unique_ptr<IQueryPlanStep> deserialize(Deserialization & ctx);
 
-    void setTopNThresholdUpdate(bool value) {  apply_top_n_threshold_update = value; }
+    void setTopNThresholdTracker(TopNThresholdTrackerPtr threshold_tracker_) { threshold_tracker = threshold_tracker_; }
 
 private:
     void scatterByPartitionIfNeeded(QueryPipelineBuilder& pipeline);
@@ -162,7 +164,8 @@ private:
     bool always_read_till_end = false;
     bool use_buffering = false;
     bool apply_virtual_row_conversions = false;
-    bool apply_top_n_threshold_update = false;
+
+    TopNThresholdTrackerPtr threshold_tracker;
 
     Settings sort_settings;
 };

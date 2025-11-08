@@ -99,7 +99,10 @@ public:
         VectorSimilarityIndexCache * vector_similarity_index_cache,
         LoggerPtr log);
 
-    static std::shared_ptr<MergeTreeIndexBulkGranulesMinMax> getMinMaxIndexGranules(MergeTreeData::DataPartPtr part, const MarkRanges & ranges, MergeTreeIndexPtr skip_index_for_top_n_filtering,
+    static MergeTreeIndexBulkGranulesMinMaxPtr getMinMaxIndexGranules(
+        MergeTreeData::DataPartPtr part,
+        const MarkRanges & ranges,
+        MergeTreeIndexPtr skip_index_minmax,
         const MergeTreeReaderSettings & reader_settings,
         MarkCache * mark_cache,
         UncompressedCache * uncompressed_cache,
@@ -208,7 +211,7 @@ public:
         const std::optional<KeyCondition> & part_offset_condition,
         const std::optional<KeyCondition> & total_offset_condition,
         const UsefulSkipIndexes & skip_indexes,
-	MergeTreeIndexPtr & skip_index_for_top_n,
+	const std::optional<TopNFilterInfo> & top_n_filter_info,
         const MergeTreeReaderSettings & reader_settings,
         LoggerPtr log,
         size_t num_streams,

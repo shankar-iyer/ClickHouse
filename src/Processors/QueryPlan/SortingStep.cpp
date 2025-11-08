@@ -301,11 +301,10 @@ void SortingStep::finishSorting(
             if (stream_type != QueryPipelineBuilder::StreamType::Main)
                 return nullptr;
 
-            return std::make_shared<PartialSortingTransform>(header, result_sort_desc, limit_);
+            return std::make_shared<PartialSortingTransform>(header, result_sort_desc, limit_, threshold_tracker);
         });
 
     bool increase_sort_description_compile_attempts = true;
-    LOG_TRACE(getLogger(""), "finishSorting flag is {}", apply_top_n_threshold_update);
 
     /// NOTE limits are not applied to the size of temporary sets in FinishSortingTransform
     pipeline.addSimpleTransform(
@@ -402,9 +401,9 @@ void SortingStep::fullSortStreams(
     const Settings & sort_settings,
     const SortDescription & result_sort_desc,
     const UInt64 limit_,
-    const bool skip_partial_sort)
+    const bool skip_partial_sort,
+    TopNThresholdTrackerPtr threshold_tracker)
 {
-    ///LOG_TRACE(getLogger(""), "fullSortStreams flag is {}", apply_top_n_threshold_update);
     if (!skip_partial_sort || limit_)
     {
         pipeline.addSimpleTransform(
@@ -413,7 +412,7 @@ void SortingStep::fullSortStreams(
                 if (stream_type != QueryPipelineBuilder::StreamType::Main)
                     return nullptr;
 
-                return std::make_shared<PartialSortingTransform>(header, result_sort_desc, limit_);
+                return std::make_shared<PartialSortingTransform>(header, result_sort_desc, limit_, threshold_tracker);
             });
 
         StreamLocalLimits limits;
@@ -437,9 +436,8 @@ void SortingStep::fullSort(
     QueryPipelineBuilder & pipeline, const SortDescription & result_sort_desc, const UInt64 limit_, const bool skip_partial_sort)
 {
     scatterByPartitionIfNeeded(pipeline);
-    LOG_TRACE(getLogger(""), "fullSort flag is {}", apply_top_n_threshold_update);
 
-    fullSortStreams(pipeline, sort_settings, result_sort_desc, limit_, skip_partial_sort);
+    fullSortStreams(pipeline, sort_settings, result_sort_desc, limit_, skip_partial_sort, threshold_tracker);
 
     /// If there are several streams, then we merge them into one
     if (pipeline.getNumStreams() > 1 && (partition_by_description.empty() || pipeline.getNumThreads() == 1))

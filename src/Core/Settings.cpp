@@ -1537,7 +1537,17 @@ Possible values:
 - 1 — Enabled.
 )", 0) \
     DECLARE(Bool, use_skip_indexes_for_top_n, false, R"(
-Enable using data skipping indexes during data reading.
+Enable using data skipping indexes for TopN filtering.
+
+When enabled, skip indexes are evaluated dynamically at the time each data granule is being read, rather than being analyzed in advance before query execution begins. This can reduce query startup latency.
+
+Possible values:
+
+- 0 — Disabled.
+- 1 — Enabled.
+)", 0) \
+    DECLARE(Bool, use_top_n_dynamic_filtering, false, R"(
+Enable TopN dynamic filtering optimization.
 
 When enabled, skip indexes are evaluated dynamically at the time each data granule is being read, rather than being analyzed in advance before query execution begins. This can reduce query startup latency.
 

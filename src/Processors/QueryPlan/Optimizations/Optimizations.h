@@ -41,6 +41,8 @@ struct Optimization
         /// Other settings
         size_t use_index_for_in_with_subqueries_max_values;
         SizeLimits network_transfer_limits;
+
+        bool use_top_n_dynamic_filtering;
     };
 
     using Function = size_t (*)(QueryPlan::Node *, QueryPlan::Nodes &, const ExtraSettings &);

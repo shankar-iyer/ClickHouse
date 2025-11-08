@@ -8,6 +8,7 @@
 #include <Storages/MergeTree/MergeTreeReadPool.h>
 #include <Storages/MergeTree/AlterConversions.h>
 #include <Storages/MergeTree/PartitionPruner.h>
+#include <Processors/TopNThresholdTracker.h>
 
 namespace DB
 {
@@ -46,16 +47,26 @@ struct UsefulSkipIndexes
         }
     };
 
-    bool empty() const { return useful_indices.empty() && merged_indices.empty(); }
+    bool empty() const { return useful_indices.empty() && merged_indices.empty() && !skip_index_for_top_n_filtering; }
 
     std::vector<MergeTreeIndexWithCondition> useful_indices;
     std::vector<MergedDataSkippingIndexAndCondition> merged_indices;
     std::vector<std::vector<size_t>> per_part_index_orders;
-    MergeTreeIndexPtr skip_index_for_top_n_filtering;
+    MergeTreeIndexPtr skip_index_for_top_n_filtering{nullptr};
 };
 
 struct MergeTreeIndexBuildContext;
 using MergeTreeIndexBuildContextPtr = std::shared_ptr<MergeTreeIndexBuildContext>;
+
+struct TopNFilterInfo
+{
+    String column_name;
+    DataTypePtr data_type;
+    size_t limit_n;
+    int direction; /// 1 = ASC, -1 = DESC
+    bool where_clause;
+    TopNThresholdTrackerPtr threshold_tracker;
+};
 
 /// This step is created to read from MergeTree* table.
 /// For now, it takes a list of parts and creates source from it.
@@ -71,14 +82,6 @@ public:
         Skip,
         PrimaryKeyExpand,
     };
-
-    struct TopNFilter
-    {
-        String column_name;
-        DataTypePtr data_type;
-        size_t limit_n;
-    };
-
 
     /// This is a struct with information about applied indexes.
     /// Is used for introspection only, in EXPLAIN query.
@@ -217,7 +220,7 @@ public:
         RangesInDataParts parts,
         MergeTreeData::MutationsSnapshotPtr mutations_snapshot,
         const std::optional<VectorSearchParameters> & vector_search_parameters,
-        const std::optional<TopNFilter> & top_n_filter,
+        const std::optional<TopNFilterInfo> & top_n_filter_info,
         const StorageMetadataPtr & metadata_snapshot,
         const SelectQueryInfo & query_info,
         ContextPtr context,
@@ -283,8 +286,7 @@ public:
     const std::optional<Indexes> & getIndexes() const { return indexes; }
     ConditionSelectivityEstimatorPtr getConditionSelectivityEstimator() const;
 
-    std::optional<TopNFilter> top_n_filter;
-    void setTopNColumn(const TopNFilter & top_n_filter_) { top_n_filter = top_n_filter_; }
+    void setTopNColumn(const TopNFilterInfo & top_n_filter_info_) { top_n_filter_info = top_n_filter_info_; }
 
 private:
     MergeTreeReaderSettings reader_settings;
@@ -417,6 +419,8 @@ private:
     ExpressionActionsPtr virtual_row_conversion;
 
     std::optional<size_t> number_of_current_replica;
+
+    std::optional<TopNFilterInfo> top_n_filter_info;
 };
 
 }
