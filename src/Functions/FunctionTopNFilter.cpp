@@ -66,11 +66,13 @@ public:
     ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override
     {
         auto data_column = arguments[0].column;
+#if 0
 	LOG_TRACE(getLogger(""), "TopN::executeImpl {}", input_rows_count);
 	if (data_column->size() > 0)
 	{
 	LOG_TRACE(getLogger(""), "Inside TopNFilter {} {} {} {}", data_column->getValueNameAndType(0).first, data_column->getValueNameAndType(0).second->getName(), data_column->get64(0), data_column->getInt(0));
 	}
+#endif
         if (threshold_tracker && threshold_tracker->isSet())
         {
             auto current_threshold = threshold_tracker->get();

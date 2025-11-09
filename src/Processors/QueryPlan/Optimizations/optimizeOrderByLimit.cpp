@@ -13,6 +13,12 @@
 #include <Processors/QueryPlan/SortingStep.h>
 #include <Common/logger_useful.h>
 #include <Functions/FunctionFactory.h>
+#include <Functions/IFunctionAdaptors.h>
+
+namespace DB
+{
+FunctionOverloadResolverPtr createInternalFunctionTopNFilterResolver(TopNThresholdTrackerPtr threshold_tracker_);
+}
 
 namespace DB::QueryPlanOptimizations
 {
@@ -77,10 +83,13 @@ size_t tryPushDownOrderByLimit(QueryPlan::Node * parent_node, QueryPlan::Nodes &
 
     if (settings.use_top_n_dynamic_filtering)
     {
-#if 0
+	threshold_tracker = std::make_shared<TopNThresholdTracker>();
+	sorting_step->setTopNThresholdTracker(threshold_tracker);
+
         auto new_prewhere_info = std::make_shared<PrewhereInfo>();
         new_prewhere_info->prewhere_actions = ActionsDAG({sort_column_name_and_type});
-        auto filter_function = FunctionFactory::instance().get("__topNFilter", /*query_context*/nullptr);
+        /// auto filter_function = FunctionFactory::instance().get("__topNFilter", /*query_context*/nullptr);
+	auto filter_function =  DB::createInternalFunctionTopNFilterResolver(threshold_tracker);
         const auto & prewhere_node = new_prewhere_info->prewhere_actions.addFunction(
                 filter_function, {new_prewhere_info->prewhere_actions.getInputs().front()}, {});
         new_prewhere_info->prewhere_actions.getOutputs().push_back(&prewhere_node);
@@ -91,10 +100,6 @@ size_t tryPushDownOrderByLimit(QueryPlan::Node * parent_node, QueryPlan::Nodes &
         LOG_TRACE(getLogger(""), "New Prewhere {}", new_prewhere_info->prewhere_actions.dumpDAG());
         /// TODO : handle existing prewhere
         read_from_mergetree_step->updatePrewhereInfo(new_prewhere_info);
-#endif
-
-	threshold_tracker = std::make_shared<TopNThresholdTracker>();
-	sorting_step->setTopNThresholdTracker(threshold_tracker);
 
     }
 
