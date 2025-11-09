@@ -183,6 +183,7 @@ namespace Setting
     extern const SettingsBool use_skip_indexes_if_final_exact_mode;
     extern const SettingsBool use_skip_indexes_on_data_read;
     extern const SettingsBool use_skip_indexes_for_top_n;
+    extern const SettingsBool use_top_n_dynamic_filtering;
     extern const SettingsBool use_query_condition_cache;
     extern const SettingsNonZeroUInt64 max_parallel_replicas;
     extern const SettingsBool enable_shared_storage_snapshot_in_query;
@@ -1912,8 +1913,12 @@ static void buildIndexes(
 
 	if (settings[Setting::use_skip_indexes_for_top_n] && canSkipIndexBeUsedForTopNFiltering(index_helper))
 	{
-            if (!top_n_filter_info->where_clause) /// TODO : Enable some WHERE types
+            /// if (!top_n_filter_info->where_clause) /// TODO : Enable some WHERE types
+            {
                 skip_indexes.skip_index_for_top_n_filtering = index_helper;
+		if (settings[Setting::use_top_n_dynamic_filtering])
+			skip_indexes.threshold_tracker = top_n_filter_info->threshold_tracker;
+            }
 	}
     }
 

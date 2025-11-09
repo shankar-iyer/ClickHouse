@@ -203,6 +203,8 @@ void MergeSortingTransform::consume(Chunk chunk)
         return;
     }
 
+    LOG_TRACE(log, "Entered MergeSortingTransform::consume chunk {} {}", chunk.getNumRows(), chunk.allocatedBytes());
+
     removeConstColumns(chunk);
 
     sum_rows_in_blocks += chunk.getNumRows();
@@ -298,6 +300,7 @@ void MergeSortingTransform::serialize()
 
 void MergeSortingTransform::generate()
 {
+    LOG_TRACE(log, "Entered MergeSortingTransform::generate");
     if (!generated_prefix)
     {
         if (temporary_files_num == 0)
@@ -323,12 +326,18 @@ void MergeSortingTransform::generate()
             merge_sorter.reset();
         else
             enrichChunkWithConstants(generated_chunk);
+        if (generated_chunk)
+	{
+		size_t num_columns = generated_chunk.getNumColumns();
+                size_t num_rows = generated_chunk.getNumRows();
+		LOG_TRACE(log, "Remerging generated chunk {} {}", num_rows, num_columns);
+	}
     }
 }
 
 void MergeSortingTransform::remerge()
 {
-    LOG_DEBUG(log, "Re-merging intermediate ORDER BY data ({} blocks with {} rows) to save memory consumption", chunks.size(), sum_rows_in_blocks);
+    LOG_TRACE(log, "Remerging intermediate ORDER BY data ({} blocks with {} rows) to save memory consumption", chunks.size(), sum_rows_in_blocks);
 
     /// NOTE Maybe concat all blocks and partial sort will be faster than merge?
     MergeSorter remerge_sorter(std::make_shared<const Block>(header_without_constants), std::move(chunks), description, max_merged_block_size, limit);

@@ -77,6 +77,7 @@ size_t tryPushDownOrderByLimit(QueryPlan::Node * parent_node, QueryPlan::Nodes &
 
     if (settings.use_top_n_dynamic_filtering)
     {
+#if 0
         auto new_prewhere_info = std::make_shared<PrewhereInfo>();
         new_prewhere_info->prewhere_actions = ActionsDAG({sort_column_name_and_type});
         auto filter_function = FunctionFactory::instance().get("__topNFilter", /*query_context*/nullptr);
@@ -88,11 +89,13 @@ size_t tryPushDownOrderByLimit(QueryPlan::Node * parent_node, QueryPlan::Nodes &
         new_prewhere_info->need_filter = true;
 
         LOG_TRACE(getLogger(""), "New Prewhere {}", new_prewhere_info->prewhere_actions.dumpDAG());
-
-	threshold_tracker = std::make_shared<TopNThresholdTracker>();
-
         /// TODO : handle existing prewhere
         read_from_mergetree_step->updatePrewhereInfo(new_prewhere_info);
+#endif
+
+	threshold_tracker = std::make_shared<TopNThresholdTracker>();
+	sorting_step->setTopNThresholdTracker(threshold_tracker);
+
     }
 
     ///TopNThresholdTracker acts as a link between 3 components

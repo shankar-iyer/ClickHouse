@@ -1078,7 +1078,7 @@ RangesInDataParts MergeTreeDataSelectExecutor::filterPartsByPrimaryKeyAndSkipInd
         });
 
     /// Optimize ORDER BY <col> LIMIT n - if <col> is scalar numeric / date / datetime and has a minmax index
-    if (skip_indexes.skip_index_for_top_n_filtering && top_n_filter_info)
+    if (skip_indexes.skip_index_for_top_n_filtering && top_n_filter_info && !top_n_filter_info->where_clause)
     {
         auto mark_cache = context->getIndexMarkCache();
         auto uncompressed_cache = context->getIndexUncompressedCache();

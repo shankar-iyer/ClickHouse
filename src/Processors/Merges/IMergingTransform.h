@@ -124,6 +124,7 @@ public:
         {
             // std::cerr << "Consume chunk with " << state.input_chunk.getNumRows()
             //           << " for input " << state.next_input_to_read << std::endl;
+	    LOG_TRACE(getLogger(""), "IMeringTransform consuming");
             algorithm.consume(state.input_chunk, state.next_input_to_read);
             state.has_input = false;
         }
@@ -135,6 +136,13 @@ public:
         }
 
         IMergingAlgorithm::Status status = algorithm.merge();
+        if ((status.chunk))
+	{
+		LOG_TRACE(getLogger(""), "IMergingTransform did work rows {}", status.chunk.getNumRows());
+	}
+	else
+		LOG_TRACE(getLogger(""), "IMergingTransform produced nothing");
+
 
         if ((status.chunk && status.chunk.hasRows()) || !status.chunk.getChunkInfos().empty())
         {

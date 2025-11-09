@@ -103,6 +103,7 @@ SkipIndexReadResultPtr MergeTreeSkipIndexReader::read(const RangesInDataPart & p
             mark_cache.get(),
             uncompressed_cache.get(),
             vector_similarity_index_cache.get());
+	res->threshold_tracker = skip_indexes.threshold_tracker;
     }
     return res;
 }

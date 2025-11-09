@@ -53,6 +53,7 @@ struct UsefulSkipIndexes
     std::vector<MergedDataSkippingIndexAndCondition> merged_indices;
     std::vector<std::vector<size_t>> per_part_index_orders;
     MergeTreeIndexPtr skip_index_for_top_n_filtering{nullptr};
+    TopNThresholdTrackerPtr threshold_tracker{nullptr};
 };
 
 struct MergeTreeIndexBuildContext;

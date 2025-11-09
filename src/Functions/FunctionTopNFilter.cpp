@@ -10,6 +10,10 @@
 #include <IO/WriteHelpers.h>
 #include <Common/CurrentThread.h>
 #include <Common/logger_useful.h>
+#include <Processors/TopNThresholdTracker.h>
+#include <Interpreters/convertFieldToType.h>
+#include <Functions/FunctionFactory.h>
+#include <Functions/IFunctionAdaptors.h>
 
 namespace DB
 {
@@ -24,7 +28,12 @@ class FunctionTopNFilter: public IFunction
 {
 public:
     static constexpr auto name = "__topNFilter";
-    static FunctionPtr create(ContextPtr) { return std::make_shared<FunctionTopNFilter>(); }
+    /// static FunctionPtr create(ContextPtr) { return std::make_shared<FunctionTopNFilter>(); }
+
+    explicit FunctionTopNFilter(TopNThresholdTrackerPtr threshold_tracker_)
+        : threshold_tracker(threshold_tracker_)
+    {
+    }
 
     String getName() const override
     {
@@ -62,10 +71,27 @@ public:
 	{
 	LOG_TRACE(getLogger(""), "Inside TopNFilter {} {} {} {}", data_column->getValueNameAndType(0).first, data_column->getValueNameAndType(0).second->getName(), data_column->get64(0), data_column->getInt(0));
 	}
-        return DataTypeUInt8().createColumnConst(input_rows_count, true);
+        if (threshold_tracker && threshold_tracker->isSet())
+        {
+            auto current_threshold = threshold_tracker->get();
+	    auto data_type = arguments[0].type;
+            ColumnPtr threshold_column = data_type->createColumnConst(input_rows_count, convertFieldToType(current_threshold, *data_type));
+
+	    auto context = Context::getGlobalContextInstance();
+	    auto compare = FunctionFactory::instance().get("greater", context);
+	    auto left = arguments[0];
+	    ColumnWithTypeAndName right{threshold_column, data_type, {}};
+	    auto elem_compare = compare->build(ColumnsWithTypeAndName{left, right});
+	    return elem_compare->execute({left, right}, elem_compare->getResultType(), input_rows_count, /* dry_run = */ false);
+        }
+	else
+            return DataTypeUInt8().createColumnConst(input_rows_count, true);
     }
+private:
+    TopNThresholdTrackerPtr threshold_tracker;
 };
 
+#if 0
 REGISTER_FUNCTION(TopNFilter)
 {
     FunctionDocumentation::Description description = R"(Special function for TopN filtering.)";
@@ -81,5 +107,11 @@ REGISTER_FUNCTION(TopNFilter)
 
     factory.registerFunction<FunctionTopNFilter>({description, syntax, arguments, returned_value, examples, introduced_in, category}, FunctionFactory::Case::Sensitive);
 }
+#endif
+
+FunctionOverloadResolverPtr createInternalFunctionTopNFilterResolver(TopNThresholdTrackerPtr threshold_tracker_)
+{
+    return std::make_shared<FunctionToOverloadResolverAdaptor>(std::make_shared<FunctionTopNFilter>(threshold_tracker_));
+};
 
 }
