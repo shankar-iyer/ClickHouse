@@ -17,7 +17,6 @@
 #include <Functions/IFunctionAdaptors.h>
 #include <Functions/indexHint.h>
 #include <Planner/PlannerActionsVisitor.h>
-#include <Common/logger_useful.h>
 
 namespace DB
 {
@@ -201,7 +200,6 @@ void MergeTreeIndexBulkGranulesSet::deserializeBinary(size_t granule_num, ReadBu
     auto & data = assert_cast<ColumnUInt64 &>(*granule_num_column).getData();
     for (size_t i = 0; i < rows_to_read; ++i)
         data.push_back(granule_num);
-    LOG_TRACE(getLogger(""), "Bulk dserialized granule {} rows {}", granule_num, rows_to_read);
 }
 
 

@@ -11,10 +11,9 @@ namespace DB
 class IMergeTreeDataPart;
 using DataPartPtr = std::shared_ptr<const IMergeTreeDataPart>;
 
-/// using SkipIndexReadResult = std::vector<bool>;
 struct SkipIndexReadResult
 {
-    std::vector<bool> granules_selected;
+    std::vector<bool> granules_selected; /// granules selected by skip index(es) at read time
     std::shared_ptr<MergeTreeIndexBulkGranulesMinMax> min_max_index_for_top_n;
     TopNThresholdTrackerPtr threshold_tracker;
 };

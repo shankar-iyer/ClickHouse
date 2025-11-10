@@ -1783,7 +1783,7 @@ ReadFromMergeTree::AnalysisResultPtr ReadFromMergeTree::selectRangesToRead(bool 
         getParts(),
         mutations_snapshot,
         vector_search_parameters,
-	top_n_filter_info,
+        top_n_filter_info,
         storage_snapshot->metadata,
         query_info,
         context,
@@ -1908,18 +1908,18 @@ static void buildIndexes(
             skip_indexes.useful_indices.emplace_back(index_helper, condition);
 
         auto canSkipIndexBeUsedForTopNFiltering = [top_n_filter_info](const MergeTreeIndexPtr & skip_index)
-	{ return top_n_filter_info && skip_index->index.column_names.size() == 1 && top_n_filter_info->column_name == skip_index->index.column_names[0] && typeid_cast<const MergeTreeIndexMinMax *>(skip_index.get());
-	};
+        {
+                return top_n_filter_info && skip_index->index.column_names.size() == 1 &&
+                       top_n_filter_info->column_name == skip_index->index.column_names[0] &&
+                       typeid_cast<const MergeTreeIndexMinMax *>(skip_index.get());
+        };
 
-	if (settings[Setting::use_skip_indexes_for_top_n] && canSkipIndexBeUsedForTopNFiltering(index_helper))
-	{
-            /// if (!top_n_filter_info->where_clause) /// TODO : Enable some WHERE types
-            {
-                skip_indexes.skip_index_for_top_n_filtering = index_helper;
-		if (settings[Setting::use_top_n_dynamic_filtering])
-			skip_indexes.threshold_tracker = top_n_filter_info->threshold_tracker;
-            }
-	}
+        if (settings[Setting::use_skip_indexes_for_top_n] && canSkipIndexBeUsedForTopNFiltering(index_helper))
+        {
+            skip_indexes.skip_index_for_top_n_filtering = index_helper;
+            if (settings[Setting::use_top_n_dynamic_filtering])
+                skip_indexes.threshold_tracker = top_n_filter_info->threshold_tracker;
+        }
     }
 
     {
@@ -2145,7 +2145,7 @@ ReadFromMergeTree::AnalysisResultPtr ReadFromMergeTree::selectRangesToRead(
             indexes->part_offset_condition,
             indexes->total_offset_condition,
             indexes->skip_indexes,
-	    top_n_filter_info,
+            top_n_filter_info,
             reader_settings,
             log,
             num_streams,
@@ -2796,7 +2796,7 @@ void ReadFromMergeTree::initializePipeline(QueryPipelineBuilder & pipeline, cons
     /// MergeTreeSelectProcessor instances, and is used to construct and apply index filters in a thread-safe manner.
     MergeTreeIndexBuildContextPtr index_build_context;
 
-    if (supportsSkipIndexesOnDataRead() || indexes->skip_indexes.skip_index_for_top_n_filtering)
+    if (supportsSkipIndexesOnDataRead())
     {
         UsefulSkipIndexes applicable_skip_indexes = indexes->skip_indexes;
 

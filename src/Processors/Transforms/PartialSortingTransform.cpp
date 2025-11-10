@@ -169,15 +169,8 @@ void PartialSortingTransform::transform(Chunk & chunk)
             if (threshold_tracker)
             {
 	        Field value;
-	        sort_description_threshold_columns[0]->get(0, value); /// only single number equivalent
-		if (threshold_tracker->isSet())
-		{
-	            auto value2 = threshold_tracker->get();
-		    if (value > value2)
-	                threshold_tracker->set(value);
-		}
-		else
-	            threshold_tracker->set(value);
+	        sort_description_threshold_columns[0]->get(0, value); /// only single number equivalent column
+                threshold_tracker->testAndSet(value);
             }
         }
     }

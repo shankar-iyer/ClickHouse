@@ -91,7 +91,7 @@ struct MergeTreeIndexBulkGranulesMinMax final : public IMergeTreeIndexBulkGranul
 {
     explicit MergeTreeIndexBulkGranulesMinMax(const String & index_name_, const Block & index_sample_block_);
     void deserializeBinary(size_t granule_num, ReadBuffer & istr, MergeTreeIndexVersion version) override;
-    void getTopN(size_t n, std::vector<size_t> & result);
+    void getTopN(size_t n, std::vector<size_t> & result, int direction);
 /*
     std::vector<size_t> granule_nums;
     std::vector<Field> min_values;

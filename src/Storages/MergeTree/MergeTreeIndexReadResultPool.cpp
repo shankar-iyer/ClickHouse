@@ -104,6 +104,7 @@ SkipIndexReadResultPtr MergeTreeSkipIndexReader::read(const RangesInDataPart & p
             uncompressed_cache.get(),
             vector_similarity_index_cache.get());
 	res->threshold_tracker = skip_indexes.threshold_tracker;
+	LOG_TRACE(getLogger(""), "Loaded minmax index granules {}", res->min_max_index_for_top_n->granules.size());
     }
     return res;
 }

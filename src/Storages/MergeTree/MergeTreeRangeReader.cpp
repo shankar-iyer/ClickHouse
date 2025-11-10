@@ -17,7 +17,6 @@
 #include <boost/qvm/vec_traits.hpp>
 #include <base/scope_guard.h>
 #include <fmt/ranges.h>
-#include <Interpreters/Context.h>
 
 #ifdef __SSE2__
 #include <emmintrin.h>
@@ -986,6 +985,7 @@ MergeTreeRangeReader::ReadResult MergeTreeRangeReader::startReadingChain(size_t 
                 ranges.pop_front();
                 current_mark = stream.current_mark;
             }
+
             if (merge_tree_reader->canSkipMark(currentMark(), stream.stream.currentTaskLastMark()))
             {
                 result.addGranule(0, {0, 0} /* unused when granule has no rows to read */);
@@ -1132,8 +1132,14 @@ ColumnPtr MergeTreeRangeReader::createPartOffsetColumn(ReadResult & result)
 
     for (size_t i = 0; i < rows_per_granule.size(); ++i)
     {
-        iota(pos, rows_per_granule[i], granule_offsets[i].starting_offset);
-        pos += rows_per_granule[i];
+        /// iota(pos, rows_per_granule[i], granule_offsets[i].starting_offset);
+        auto offset = granule_offsets[i].starting_offset;
+	for (size_t j = 0; j < rows_per_granule[i]; ++j)
+	{
+            *pos++ = offset;
+	    offset++;
+	}
+        ///pos += rows_per_granule[i];
     }
 
     if (vec.empty())

@@ -1,8 +1,5 @@
-#include <Columns/ColumnConst.h>
 #include <Core/Field.h>
 #include <Core/SortDescription.h>
-#include <DataTypes/DataTypeArray.h>
-#include <DataTypes/DataTypesNumber.h>
 #include <Functions/IFunction.h>
 #include <Processors/QueryPlan/ExpressionStep.h>
 #include <Processors/QueryPlan/FilterStep.h>
@@ -81,9 +78,11 @@ size_t tryPushDownOrderByLimit(QueryPlan::Node * parent_node, QueryPlan::Nodes &
     NameAndTypePair sort_column_name_and_type(sort_column_name, sort_column.type);
     TopNThresholdTrackerPtr threshold_tracker = nullptr;
 
+    int direction = sort_description.front().direction;
+
     if (settings.use_top_n_dynamic_filtering)
     {
-	threshold_tracker = std::make_shared<TopNThresholdTracker>();
+	threshold_tracker = std::make_shared<TopNThresholdTracker>(direction);
 	sorting_step->setTopNThresholdTracker(threshold_tracker);
 
         auto new_prewhere_info = std::make_shared<PrewhereInfo>();
@@ -110,7 +109,7 @@ size_t tryPushDownOrderByLimit(QueryPlan::Node * parent_node, QueryPlan::Nodes &
     ///                                  \
     ///                                __topNFilter() (Prewhere filtering)
 
-    read_from_mergetree_step->setTopNColumn({sort_column_name, sort_column.type, n, sort_description.front().direction, where_clause, threshold_tracker});
+    read_from_mergetree_step->setTopNColumn({sort_column_name, sort_column.type, n, direction, where_clause, threshold_tracker});
 
     return 0;
 }
