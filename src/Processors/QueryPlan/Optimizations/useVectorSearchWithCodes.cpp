@@ -22,6 +22,8 @@
 #include <Storages/ColumnsDescription.h>
 #include <Storages/StorageInMemoryMetadata.h>
 
+#include <ranges>
+
 namespace DB::Setting
 {
     extern const SettingsFloat vector_search_index_fetch_multiplier;
@@ -125,10 +127,12 @@ bool optimizeVectorSearchWithCodes(
     if (!expression_step || expression_node->children.size() != 1)
         return false;
 
-    /// Descend through the chain of Expression/Filter steps (the WHERE predicate moved to PREWHERE shows up as a
-    /// rename ExpressionStep here) until we reach ReadFromMergeTree. `read_parent_node` is the node whose only child
-    /// is the read - that is where we splice the shortlist.
-    QueryPlan::Node * read_parent_node = expression_node;
+    /// Descend through the chain of Expression/Filter steps between the rescore expression and the read until we reach
+    /// ReadFromMergeTree. The chain holds the WHERE predicate - either as a FilterStep, or (when moved to PREWHERE) as
+    /// a rename ExpressionStep with the actual filter inside the reader. We collect the chain so we can splice the
+    /// shortlist ABOVE all of it: this way every filter prefilters the approximate ranking. `code` is then propagated
+    /// up through the chain (the steps would otherwise drop it as an unknown column).
+    std::vector<QueryPlan::Node *> chain_nodes; /// ordered top (just below the rescore expression) to bottom (just above read)
     QueryPlan::Node * read_node = expression_node->children.front();
     ReadFromMergeTree * read_step = nullptr;
     while (true)
@@ -140,7 +144,7 @@ bool optimizeVectorSearchWithCodes(
             return false;
         if (read_node->children.size() != 1)
             return false;
-        read_parent_node = read_node;
+        chain_nodes.push_back(read_node);
         read_node = read_node->children.front();
     }
 
@@ -252,7 +256,31 @@ bool optimizeVectorSearchWithCodes(
     /// 1. Pull the codes column into the read list.
     read_step->addReadColumn(codes_column);
 
-    SharedHeader inner_input_header = read_step->getOutputHeader();
+    /// 2. Propagate the codes column up through the filter/rename chain (bottom-up), so it is available where we
+    /// splice the shortlist (above all filters). Each Expression/Filter step would otherwise drop it.
+    SharedHeader child_output = read_step->getOutputHeader();
+    for (auto * chain_node : chain_nodes | std::views::reverse)
+    {
+        ActionsDAG * chain_dag = nullptr;
+        if (auto * chain_expression = typeid_cast<ExpressionStep *>(chain_node->step.get()))
+            chain_dag = &chain_expression->getExpression();
+        else if (auto * chain_filter = typeid_cast<FilterStep *>(chain_node->step.get()))
+            chain_dag = &chain_filter->getExpression();
+
+        if (chain_dag && !chain_dag->tryFindInOutputs(codes_column))
+        {
+            const auto & codes_type = child_output->getByName(codes_column).type;
+            const auto & codes_input = chain_dag->addInput(codes_column, codes_type);
+            chain_dag->getOutputs().push_back(&codes_input);
+        }
+        chain_node->step->updateInputHeader(child_output);
+        child_output = chain_node->step->getOutputHeader();
+    }
+
+    /// `child_output` is now the header just below the splice point (top of the chain, or the read if no chain), with
+    /// the codes column carried through.
+    SharedHeader inner_input_header = child_output;
+    QueryPlan::Node * inner_child_node = chain_nodes.empty() ? read_node : chain_nodes.front();
 
     /// 3. Build the approximate-distance expression: _approx := fastknnDistance(code, ref, method, dim, bits, is_l2).
     static constexpr auto approx_column_name = "__fastknn_approx_distance";
@@ -291,7 +319,7 @@ bool optimizeVectorSearchWithCodes(
     auto & inner_expression_node = nodes.emplace_back();
     inner_expression_node.step = std::make_unique<ExpressionStep>(inner_input_header, std::move(approx_dag));
     inner_expression_node.step->setStepDescription("fastknn approximate distance");
-    inner_expression_node.children = {read_node};
+    inner_expression_node.children = {inner_child_node};
 
     SortDescription approx_sort_description;
     approx_sort_description.emplace_back(approx_column_name, approx_column_name, /*direction=*/1, /*nulls_direction=*/1);
@@ -307,12 +335,12 @@ bool optimizeVectorSearchWithCodes(
     inner_limit_node.step->setStepDescription("fastknn shortlist limit");
     inner_limit_node.children = {&inner_sorting_node};
 
-    /// 5. Splice the shortlist directly above the read. The steps above (rename expression, the rescore expression)
-    /// keep their output headers because they ignore the extra `code`/`_approx` columns; only the read's parent needs
-    /// its input header refreshed. The general lazy-materialization pass will later defer the heavy vector column on
-    /// the inner LimitStep, so `vec` is read only for the k' shortlisted rows.
-    read_parent_node->children = {&inner_limit_node};
-    read_parent_node->step->updateInputHeader(inner_limit_node.step->getOutputHeader());
+    /// 5. Splice the shortlist above the whole filter/rename chain (between the rescore expression and the chain top).
+    /// The rescore expression keeps its output header because it ignores the extra `code`/`_approx` columns. The
+    /// general lazy-materialization pass will later defer the heavy vector column on the inner LimitStep (descending
+    /// through the chain's Expression/Filter steps), so `vec` is read only for the k' shortlisted rows.
+    expression_node->children = {&inner_limit_node};
+    expression_node->step->updateInputHeader(inner_limit_node.step->getOutputHeader());
 
     return true;
 }

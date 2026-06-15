@@ -40,6 +40,24 @@ SELECT 'filtered top-8 exact==codes',
     (SELECT groupArray(id) FROM (SELECT id, L2Distance(vec, ref) AS d FROM fastknn_auto WHERE id % 7 = 0 ORDER BY d, id LIMIT 8))
     = (SELECT groupArray(id) FROM (SELECT id FROM fastknn_auto WHERE id % 7 = 0 ORDER BY L2Distance(vec, ref) ASC LIMIT 8 SETTINGS vector_search_index_fetch_multiplier = 4000));
 
+-- A WHERE that is NOT moved to PREWHERE stays a FilterStep; the shortlist is spliced ABOVE it so it still
+-- prefilters. The rewrite fires (shortlist present) and the result is exact with a full shortlist.
+SELECT
+    countIf(explain ILIKE '%fastknn shortlist%') > 0 AS has_shortlist,
+    countIf(explain ILIKE '%Filter%') > 0 AS has_filter_step
+FROM
+(
+    EXPLAIN PLAN
+    SELECT id FROM fastknn_auto WHERE id % 7 = 0
+    ORDER BY L2Distance(vec, (SELECT vec FROM fastknn_auto WHERE id = 123)) ASC
+    LIMIT 5 SETTINGS vector_search_index_fetch_multiplier = 50, optimize_move_to_prewhere = 0
+);
+
+WITH (SELECT vec FROM fastknn_auto WHERE id = 123) AS ref
+SELECT 'filtered (FilterStep) top-8 exact==codes',
+    (SELECT groupArray(id) FROM (SELECT id, L2Distance(vec, ref) AS d FROM fastknn_auto WHERE id % 7 = 0 ORDER BY d, id LIMIT 8))
+    = (SELECT groupArray(id) FROM (SELECT id FROM fastknn_auto WHERE id % 7 = 0 ORDER BY L2Distance(vec, ref) ASC LIMIT 8 SETTINGS vector_search_index_fetch_multiplier = 4000, optimize_move_to_prewhere = 0));
+
 -- The exact-match query vector is always returned first (its quantized code is the closest, rescore distance 0).
 WITH (SELECT vec FROM fastknn_auto WHERE id = 123) AS ref
 SELECT 'nearest is self', (SELECT id FROM fastknn_auto ORDER BY L2Distance(vec, ref) ASC LIMIT 1 SETTINGS vector_search_index_fetch_multiplier = 100) = 123;
