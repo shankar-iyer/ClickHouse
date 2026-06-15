@@ -1,0 +1,10 @@
+byte lengths per method
+8	8	12	20	12
+materialized code is non-empty and fixed size
+1	8
+nearest by approximate distance (b1)
+3
+prefilter then rescore (top-2 reranked by exact L2)
+5
+1
+errors
