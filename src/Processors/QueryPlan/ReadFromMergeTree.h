@@ -332,6 +332,10 @@ public:
     void replaceVectorColumnWithDistanceColumn(const String & vector_column);
     bool isVectorColumnReplaced() const;
 
+    /// Add a column to the read list (used by the fastknn codes-as-column optimization to pull in the quantized
+    /// codes column). No-op if the column is already read.
+    void addReadColumn(const String & column);
+
     /// Returns true if the optimization is applicable (and applies it then).
     bool requestOutputEachPartitionThroughSeparatePortForAggregation();
     bool requestOutputEachPartitionThroughSeparatePortForLimitBy();
