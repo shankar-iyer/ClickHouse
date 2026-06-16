@@ -64,8 +64,14 @@ void readVectorRow(const ColumnArray & col_arr, size_t row, std::vector<float> &
         for (size_t i = 0; i < size; ++i)
             out[i] = static_cast<float>(data[begin + i]);
     }
+    else if (const auto * bf16 = typeid_cast<const ColumnBFloat16 *>(&nested))
+    {
+        const auto & data = bf16->getData();
+        for (size_t i = 0; i < size; ++i)
+            out[i] = static_cast<float>(data[begin + i]);
+    }
     else
-        throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "fastknn vector argument must be Array(Float32) or Array(Float64)");
+        throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "fastknn vector argument must be Array(Float32), Array(Float64) or Array(BFloat16)");
 }
 
 void checkVectorArgument(const DataTypePtr & type, const String & fn)
@@ -73,11 +79,11 @@ void checkVectorArgument(const DataTypePtr & type, const String & fn)
     const auto * array_type = checkAndGetDataType<DataTypeArray>(type.get());
     if (!array_type)
         throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-            "First argument of function {} must be Array(Float32) or Array(Float64)", fn);
+            "First argument of function {} must be Array(Float32), Array(Float64) or Array(BFloat16)", fn);
     const auto & nested = array_type->getNestedType();
     if (!isFloat(nested))
         throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-            "First argument of function {} must be Array(Float32) or Array(Float64), got Array({})", fn, nested->getName());
+            "First argument of function {} must be Array(Float32), Array(Float64) or Array(BFloat16), got Array({})", fn, nested->getName());
 }
 
 }
@@ -239,7 +245,7 @@ it is ignored by the other methods.
 )";
     FunctionDocumentation::Syntax syntax = "fastknnEncode(vec, method, dimensions, bits)";
     FunctionDocumentation::Arguments arguments = {
-        {"vec", "The vector to encode.", {"Array(Float32)", "Array(Float64)"}},
+        {"vec", "The vector to encode.", {"Array(Float32)", "Array(Float64)", "Array(BFloat16)"}},
         {"method", "Quantization method.", {"const String"}},
         {"dimensions", "Number of vector dimensions.", {"const UInt*"}},
         {"bits", "Bits per sub-quantizer (only used by `e8`).", {"const UInt*"}},
@@ -265,7 +271,7 @@ query. `is_l2` selects `L2Distance` (1) versus `cosineDistance` (0).
     FunctionDocumentation::Syntax syntax = "fastknnDistance(code, query, method, dimensions, bits, is_l2)";
     FunctionDocumentation::Arguments arguments = {
         {"code", "A quantized code produced by `fastknnEncode`.", {"FixedString"}},
-        {"query", "The full-precision query vector.", {"const Array(Float32)", "const Array(Float64)"}},
+        {"query", "The full-precision query vector.", {"const Array(Float32)", "const Array(Float64)", "const Array(BFloat16)"}},
         {"method", "Quantization method (must match the one used for `code`).", {"const String"}},
         {"dimensions", "Number of vector dimensions.", {"const UInt*"}},
         {"bits", "Bits per sub-quantizer (only used by `e8`).", {"const UInt*"}},

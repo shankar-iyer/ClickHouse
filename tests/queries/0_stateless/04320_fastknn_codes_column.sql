@@ -51,6 +51,16 @@ LIMIT 2;
 
 DROP TABLE fastknn_codes;
 
+-- The base vector column may also be Array(BFloat16) (and Array(Float64)). The code is identical to the Float32
+-- encoding for the same values, and the self-vector is its own nearest neighbour.
+SELECT 'bfloat16 base column';
+SELECT
+    fastknnEncode(materialize(arrayMap(x -> toBFloat16(if(x % 2 = 0, 1, -1)), range(64))), 'b1', 64, 0)
+        = fastknnEncode(materialize(arrayMap(x -> toFloat32(if(x % 2 = 0, 1, -1)), range(64))), 'b1', 64, 0) AS bf16_matches_f32,
+    fastknnDistance(
+        fastknnEncode(materialize(arrayMap(x -> toBFloat16(if(x % 2 = 0, 1, -1)), range(64))), 'b1', 64, 0),
+        arrayMap(x -> toBFloat16(if(x % 2 = 0, 1, -1)), range(64)), 'b1', 64, 0, 1) AS self_distance;
+
 -- Error handling.
 SELECT 'errors';
 SELECT fastknnEncode([1., 2., 3.], 'nope', 3, 0); -- { serverError BAD_ARGUMENTS }

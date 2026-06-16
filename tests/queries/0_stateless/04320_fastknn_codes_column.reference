@@ -7,4 +7,6 @@ nearest by approximate distance (b1)
 prefilter then rescore (top-2 reranked by exact L2)
 5
 1
+bfloat16 base column
+1	0
 errors
