@@ -187,11 +187,13 @@ public:
         const UInt64 bits = getConstUIntArgument(arguments[4], name, 4);
         const bool is_l2 = getConstUIntArgument(arguments[5], name, 5) != 0;
 
-        /// Read the (constant) query vector and prepare the query state once.
-        ColumnPtr query_column = arguments[1].column->convertToFullColumnIfConst();
-        const auto * query_arr = checkAndGetColumn<ColumnArray>(query_column.get());
-        if (!query_arr)
-            throw Exception(ErrorCodes::ILLEGAL_COLUMN, "Query argument of function {} must be an array", name);
+        /// Read the (constant) query vector from the constant's single-row payload and prepare the query state once.
+        /// Reading the payload directly (rather than expanding the constant) keeps this correct on empty/dry-run blocks,
+        /// where the expanded column would have zero rows.
+        const auto * query_const = checkAndGetColumnConst<ColumnArray>(arguments[1].column.get());
+        if (!query_const)
+            throw Exception(ErrorCodes::ILLEGAL_COLUMN, "Query argument of function {} must be a constant array", name);
+        const auto * query_arr = checkAndGetColumn<ColumnArray>(&query_const->getDataColumn());
 
         std::vector<float> query_buf;
         readVectorRow(*query_arr, 0, query_buf);
