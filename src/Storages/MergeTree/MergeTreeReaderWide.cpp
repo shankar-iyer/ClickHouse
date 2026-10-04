@@ -818,6 +818,7 @@ void MergeTreeReaderWide::prepareLazyMaterialization(const PaddedPODArray<UInt64
         return;
     const auto & checksums = data_part_info_for_read->getChecksums();
     const ISerialization::SubstreamPath elements_substream = SerializationQuantizedVector::vectorElementsSubstreamPath();
+    const bool remote = data_part_info_for_read->getDataPartStorage()->isStoredOnRemoteDisk();
 
     for (size_t pos = 0; rows && pos < columns_to_read.size(); ++pos)
     {
@@ -857,6 +858,8 @@ void MergeTreeReaderWide::prepareLazyMaterialization(const PaddedPODArray<UInt64
             std::move(buf),
             quantized->getVectorElementsSerialization(),
             quantized->getParams().dimensions,
+            block_bytes,
+            remote ? settings.read_settings.remote_fs_settings.min_bytes_for_seek : 0,
             std::string(block_bytes, '\0')};
     }
 }
@@ -865,20 +868,37 @@ void MergeTreeReaderWide::readFixedSizeLazyRowsByPosition(FixedSizeLazyRead & fi
 {
     auto & column_array = assert_cast<ColumnArray &>(column);
     auto & data = column_array.getData();
-    auto & block = fixed_size_lazy_read.block;
+    auto & buffer = fixed_size_lazy_read.buffer;
+    const size_t block_bytes = fixed_size_lazy_read.block_bytes;
+    const size_t seek_bytes = fixed_size_lazy_read.seek_bytes;
+    const size_t rows_end = from_row + num_rows;
+
+    const auto * wanted = std::lower_bound(lazy_rows->begin(), lazy_rows->end(), from_row);
+    const size_t wanted_rows = std::lower_bound(wanted, lazy_rows->end(), rows_end) - wanted;
+
+    /// A read per wanted row pays a seek per row; taking the whole slice in one read pays one seek but carries
+    /// every row's bytes. Dense enough slices are cheaper whole - either way only the wanted rows are decompressed.
+    const size_t slice_bytes = num_rows * block_bytes;
+    const bool read_slice_whole = wanted_rows && slice_bytes + seek_bytes < wanted_rows * (block_bytes + seek_bytes);
+
+    buffer.resize(read_slice_whole ? slice_bytes : block_bytes);
+    if (read_slice_whole
+        && fixed_size_lazy_read.buf->readBigAt(buffer.data(), slice_bytes, from_row * block_bytes, {}) != slice_bytes)
+        throw Exception(ErrorCodes::CANNOT_READ_ALL_DATA, "Cannot read the vectors of rows [{}, {})", from_row, rows_end);
 
     /// Rows that were not requested get an empty array, the reader chain filters them out.
-    const auto * wanted = std::lower_bound(lazy_rows->begin(), lazy_rows->end(), from_row);
-    for (size_t row = from_row; row < from_row + num_rows; ++row)
+    for (size_t row = from_row; row < rows_end; ++row)
     {
         if (wanted != lazy_rows->end() && *wanted == row)
         {
             ++wanted;
-            if (fixed_size_lazy_read.buf->readBigAt(block.data(), block.size(), row * block.size(), {}) != block.size())
+            const char * block = buffer.data() + (read_slice_whole ? (row - from_row) * block_bytes : 0);
+            if (!read_slice_whole
+                && fixed_size_lazy_read.buf->readBigAt(buffer.data(), block_bytes, row * block_bytes, {}) != block_bytes)
                 throw Exception(ErrorCodes::CANNOT_READ_ALL_DATA, "Cannot read the vector of row {}", row);
 
             /// Verifies the checksum and decompresses straight into the column.
-            ReadBufferFromMemory compressed(block.data(), block.size());
+            ReadBufferFromMemory compressed(block, block_bytes);
             CompressedReadBuffer decompressed(compressed);
             if (!settings.checksum_on_read)
                 decompressed.disableChecksumming();

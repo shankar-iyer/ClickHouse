@@ -148,7 +148,9 @@ private:
         std::unique_ptr<ReadBufferFromFileBase> buf;
         SerializationPtr element_serialization;
         size_t dimensions = 0;
-        std::string block;
+        size_t block_bytes = 0; /// On-disk stride of a row: exactly one compressed block.
+        size_t seek_bytes = 0; /// Price of starting a read, expressed in bytes; zero where seeking is free.
+        std::string buffer;
     };
     void readFixedSizeLazyRowsByPosition(FixedSizeLazyRead & fixed_size_lazy_read, IColumn & column, size_t from_row, size_t num_rows);
 
